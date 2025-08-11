@@ -3,9 +3,10 @@ import React, { useState, useEffect } from 'react';
 // --- Page Imports ---
 import GuestViewPage from './features/guest/GuestViewPage.jsx';
 import DashboardPage from './features/dashboard/DashboardPage.jsx';
+import EditorPage from './features/editor/EditorPage.jsx';
 
 // --- Placeholder Page Imports ---
-// We will create these components later.
+// This will be the last component we build.
 const LoginPage = ({ onLogin }) => (
     <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="text-center p-8 bg-white rounded-lg shadow-xl">
@@ -20,7 +21,6 @@ const LoginPage = ({ onLogin }) => (
         </div>
     </div>
 );
-const EditorPage = ({ slug }) => <div className="p-8">Editor Page for: {slug}</div>;
 
 
 function App() {
@@ -61,6 +61,11 @@ function App() {
     setPage('login');
   };
 
+  const handleNavigateToDashboard = () => {
+    window.history.pushState({}, '', '/');
+    setPage('dashboard');
+  };
+
   const handleSelectProperty = (propertySlug) => {
     window.history.pushState({}, '', `/${propertySlug}`);
     setSlug(propertySlug);
@@ -71,6 +76,12 @@ function App() {
     window.history.pushState({}, '', `/${propertySlug}/edit`);
     setSlug(propertySlug);
     setPage('editor');
+  };
+
+  const handleSave = (updatedData) => {
+    console.log('Saving data...', updatedData); // In a real app, this would send data to Supabase.
+    alert('Changes saved! (Check the console to see the data)');
+    handleNavigateToDashboard();
   };
 
   // --- Render Logic ---
@@ -88,7 +99,7 @@ function App() {
           />
         );
       case 'editor':
-        return <EditorPage slug={slug} />;
+        return <EditorPage slug={slug} onSave={handleSave} onExit={handleNavigateToDashboard} />;
       case 'guest':
         return <GuestViewPage slug={slug} />;
       case 'loading':

@@ -4,23 +4,7 @@ import React, { useState, useEffect } from 'react';
 import GuestViewPage from './features/guest/GuestViewPage.jsx';
 import DashboardPage from './features/dashboard/DashboardPage.jsx';
 import EditorPage from './features/editor/EditorPage.jsx';
-
-// --- Placeholder Page Imports ---
-// This will be the last component we build.
-const LoginPage = ({ onLogin }) => (
-    <div className="flex items-center justify-center h-screen bg-gray-100">
-        <div className="text-center p-8 bg-white rounded-lg shadow-xl">
-            <h1 className="text-3xl font-bold mb-4">WelcomeTo</h1>
-            <p className="text-gray-600 mb-6">Host Login</p>
-            <button 
-                onClick={onLogin} 
-                className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700"
-            >
-                Simulate Login
-            </button>
-        </div>
-    </div>
-);
+import LoginPage from './features/auth/LoginPage.jsx';
 
 
 function App() {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 // --- Page Imports ---
+import LandingPage from './features/landing/LandingPage.jsx';
 import GuestViewPage from './features/guest/GuestViewPage.jsx';
 import DashboardPage from './features/dashboard/DashboardPage.jsx';
 import EditorPage from './features/editor/EditorPage.jsx';
@@ -9,6 +10,7 @@ import LoginPage from './features/auth/LoginPage.jsx';
 
 function App() {
   // --- State Management ---
+  const [view, setView] = useState('landing'); // 'landing' or 'app'
   const [page, setPage] = useState('loading'); // loading, login, dashboard, editor, guest
   const [user, setUser] = useState(null); // Will hold user data from Supabase
   const [slug, setSlug] = useState(null); // The unique URL slug for a property
@@ -20,29 +22,37 @@ function App() {
 
     if (path.length === 0) {
       // Root URL: /
-      setPage(user ? 'dashboard' : 'login');
-    } else if (action === 'edit' && user) {
-      // URL: /some-slug/edit
-      setSlug(path[0]);
-      setPage('editor');
+      // If user is logged in, go to app dashboard, otherwise show landing page.
+      if (user) {
+        setView('app');
+        setPage('dashboard');
+      } else {
+        setView('landing');
+      }
     } else {
-      // URL: /some-slug
+      // A guest is viewing a welcome book, so go directly to the app view.
+      setView('app');
       setSlug(path[0]);
       setPage('guest');
     }
   }, [user]); // Re-run this logic when the user logs in or out.
 
   // --- Event Handlers ---
+  const handleLoginClick = () => {
+    setView('app');
+    setPage('login');
+  };
+  
   const handleLogin = () => {
     setUser({ name: 'Alex Miller' }); // Simulate a logged-in user
-    window.history.pushState({}, '', '/');
+    setView('app');
     setPage('dashboard');
   };
 
   const handleLogout = () => {
     setUser(null);
+    setView('landing'); // Go back to landing page on logout
     window.history.pushState({}, '', '/');
-    setPage('login');
   };
 
   const handleNavigateToDashboard = () => {
@@ -69,7 +79,7 @@ function App() {
   };
 
   // --- Render Logic ---
-  const renderPage = () => {
+  const renderAppContent = () => {
     switch (page) {
       case 'login':
         return <LoginPage onLogin={handleLogin} />;
@@ -94,7 +104,11 @@ function App() {
 
   return (
     <div>
-      {renderPage()}
+      {view === 'landing' ? (
+        <LandingPage onLoginClick={handleLoginClick} />
+      ) : (
+        renderAppContent()
+      )}
     </div>
   );
 }

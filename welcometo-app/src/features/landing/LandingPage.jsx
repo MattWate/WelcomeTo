@@ -1,5 +1,6 @@
 import React from 'react';
-import Icon from '../../components/ui/Icon'; // Assuming Icon component is in this path
+// This path is corrected to navigate up two directories from 'features/landing'
+import Icon from '../../components/ui/Icon'; 
 
 const LandingPage = ({ onLoginClick }) => {
   return (

@@ -1,15 +1,29 @@
 import React, { useState } from 'react';
 import Icon from '../../components/ui/Icon';
+import { supabase } from '../../lib/supabaseClient'; // Import the Supabase client
 
-const LoginPage = ({ onLogin }) => {
-  const [email, setEmail] = useState('alex@host.com'); // Pre-filled for demo
-  const [password, setPassword] = useState('password'); // Pre-filled for demo
+const LoginPage = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // In a real app, you'd send the email and password to Supabase here.
-    // For now, we just call the onLogin function passed from App.jsx.
-    onLogin();
+    setLoading(true);
+    setError(null);
+
+    // Use Supabase to sign in the user with their email and password
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) {
+      setError(error.message);
+    }
+    // If login is successful, the onAuthStateChange listener in App.jsx will handle navigation.
+    setLoading(false);
   };
 
   return (
@@ -28,6 +42,7 @@ const LoginPage = ({ onLogin }) => {
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {error && <div className="p-3 bg-red-100 text-red-700 rounded-md">{error}</div>}
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="email-address" className="sr-only">Email address</label>
@@ -61,9 +76,10 @@ const LoginPage = ({ onLogin }) => {
           <div>
             <button 
               type="submit" 
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:bg-green-300"
             >
-              Sign In
+              {loading ? 'Signing In...' : 'Sign In'}
             </button>
           </div>
         </form>
@@ -73,4 +89,3 @@ const LoginPage = ({ onLogin }) => {
 };
 
 export default LoginPage;
-

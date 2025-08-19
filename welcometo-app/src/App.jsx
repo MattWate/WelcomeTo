@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './lib/supabaseClient'; // Import the Supabase client
 
 // --- Page Imports ---
 import LandingPage from './features/landing/LandingPage.jsx';
@@ -10,32 +11,61 @@ import LoginPage from './features/auth/LoginPage.jsx';
 
 function App() {
   // --- State Management ---
-  const [view, setView] = useState('landing'); // 'landing' or 'app'
-  const [page, setPage] = useState('loading'); // loading, login, dashboard, editor, guest
-  const [user, setUser] = useState(null); // Will hold user data from Supabase
-  const [slug, setSlug] = useState(null); // The unique URL slug for a property
+  const [view, setView] = useState('landing');
+  const [page, setPage] = useState('loading');
+  const [user, setUser] = useState(null);
+  const [slug, setSlug] = useState(null);
+
+  // --- Supabase Auth Listener ---
+  useEffect(() => {
+    // Check for an initial session
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      // Finished loading, now run the routing logic
+      handleRouting(session?.user ?? null);
+    };
+
+    getSession();
+
+    // Listen for changes in authentication state (login, logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Cleanup subscription on component unmount
+    return () => subscription.unsubscribe();
+  }, []);
 
   // --- Routing Logic ---
-  useEffect(() => {
+  const handleRouting = (currentUser) => {
     const path = window.location.pathname.split('/').filter(Boolean);
-    const action = path[1]; // e.g., 'edit'
+    const action = path[1];
 
     if (path.length === 0) {
-      // Root URL: /
-      // If user is logged in, go to app dashboard, otherwise show landing page.
-      if (user) {
+      if (currentUser) {
         setView('app');
         setPage('dashboard');
       } else {
         setView('landing');
       }
     } else {
-      // A guest is viewing a welcome book, so go directly to the app view.
       setView('app');
-      setSlug(path[0]);
-      setPage('guest');
+      if (action === 'edit' && currentUser) {
+        setSlug(path[0]);
+        setPage('editor');
+      } else {
+        setSlug(path[0]);
+        setPage('guest');
+      }
     }
-  }, [user]); // Re-run this logic when the user logs in or out.
+  };
+  
+  // Re-run routing logic whenever the user state changes
+  useEffect(() => {
+    handleRouting(user);
+  }, [user]);
+
 
   // --- Event Handlers ---
   const handleLoginClick = () => {
@@ -43,15 +73,10 @@ function App() {
     setPage('login');
   };
   
-  const handleLogin = () => {
-    setUser({ name: 'Alex Miller' }); // Simulate a logged-in user
-    setView('app');
-    setPage('dashboard');
-  };
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    setView('landing'); // Go back to landing page on logout
+    setView('landing');
     window.history.pushState({}, '', '/');
   };
 
@@ -73,7 +98,7 @@ function App() {
   };
 
   const handleSave = (updatedData) => {
-    console.log('Saving data...', updatedData); // In a real app, this would send data to Supabase.
+    console.log('Saving data...', updatedData);
     alert('Changes saved! (Check the console to see the data)');
     handleNavigateToDashboard();
   };
@@ -82,7 +107,7 @@ function App() {
   const renderAppContent = () => {
     switch (page) {
       case 'login':
-        return <LoginPage onLogin={handleLogin} />;
+        return <LoginPage />;
       case 'dashboard':
         return (
           <DashboardPage 
@@ -104,7 +129,7 @@ function App() {
 
   return (
     <div>
-      {view === 'landing' ? (
+      {view === 'landing' && !user ? (
         <LandingPage onLoginClick={handleLoginClick} />
       ) : (
         renderAppContent()

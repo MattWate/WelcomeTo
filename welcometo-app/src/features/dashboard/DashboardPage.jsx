@@ -1,19 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import Icon from '../../components/ui/Icon';
-
-// --- Mock Data ---
-// In a real app, this would be fetched from Supabase for the logged-in user.
-const mockProperties = [
-  { id: 'prop1', name: 'Sunny Beachside Condo', slug: 'sunny-condo' },
-  { id: 'prop2', name: 'Cozy Mountain Cabin', slug: 'cozy-cabin' },
-  { id: 'prop3', name: 'Urban Downtown Loft', slug: 'urban-loft' },
-];
+import { supabase } from '../../lib/supabaseClient'; // Import the Supabase client
 
 // --- Main Page Component ---
-const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty, onCreateNew }) => {
+const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty }) => {
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
 
-  // A simple notification handler for buttons that aren't fully implemented yet.
+  useEffect(() => {
+    const fetchProperties = async () => {
+      if (!user) return;
+
+      setLoading(true);
+      setError(null);
+
+      // Fetch properties from Supabase that belong to the current user
+      const { data, error } = await supabase
+        .from('wt_properties')
+        .select('id, name, slug')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error fetching properties:', error);
+        setError('Failed to load your properties.');
+      } else {
+        setProperties(data);
+      }
+      setLoading(false);
+    };
+
+    fetchProperties();
+  }, [user]); // Re-fetch properties if the user changes
+
   const handleCreateNewClick = () => {
     setNotification("This feature will be available soon!");
     setTimeout(() => setNotification(null), 3000);
@@ -30,8 +50,7 @@ const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty, onCre
           <div className="flex items-center space-x-4">
              <div className="flex items-center space-x-2">
                 <Icon name="user" className="w-5 h-5 text-gray-500" />
-                {/* In a real app, user.name would come from the user prop */}
-                <span className="text-gray-700 font-medium">Alex Miller</span>
+                <span className="text-gray-700 font-medium">{user?.email}</span>
              </div>
             <button onClick={onLogout} className="text-sm font-medium text-gray-600 hover:text-green-600">Logout</button>
           </div>
@@ -53,34 +72,42 @@ const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty, onCre
         </div>
         
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          {loading && <div className="p-6 text-center text-gray-500">Loading properties...</div>}
+          {error && <div className="p-6 text-center text-red-500">{error}</div>}
+          {!loading && !error && (
             <ul className="divide-y divide-gray-200">
-                {mockProperties.map(prop => (
-                    <li key={prop.id} className="p-4 md:p-6 hover:bg-gray-50 transition-colors">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                            <div className="mb-4 sm:mb-0">
-                                <h3 className="text-xl font-semibold text-gray-800">{prop.name}</h3>
-                                <div className="flex items-center text-sm text-gray-500 mt-2">
-                                    <Icon name="link" className="w-4 h-4 mr-2" />
-                                    <span>/{prop.slug}</span>
-                                </div>
-                            </div>
-                            <div className="flex items-center space-x-4 mt-4 sm:mt-0">
-                                <button 
-                                    onClick={() => onEditProperty(prop.slug)}
-                                    className="text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center space-x-1">
-                                    <Icon name="edit" className="w-4 h-4" />
-                                    <span>Edit</span>
-                                </button>
-                                <button 
-                                    onClick={() => onSelectProperty(prop.slug)}
-                                    className="text-sm font-semibold text-green-600 hover:text-green-800">
-                                    View as Guest &rarr;
-                                </button>
-                            </div>
-                        </div>
-                    </li>
-                ))}
+                {properties.length > 0 ? (
+                  properties.map(prop => (
+                      <li key={prop.id} className="p-4 md:p-6 hover:bg-gray-50 transition-colors">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                              <div className="mb-4 sm:mb-0">
+                                  <h3 className="text-xl font-semibold text-gray-800">{prop.name}</h3>
+                                  <div className="flex items-center text-sm text-gray-500 mt-2">
+                                      <Icon name="link" className="w-4 h-4 mr-2" />
+                                      <span>/{prop.slug}</span>
+                                  </div>
+                              </div>
+                              <div className="flex items-center space-x-4 mt-4 sm:mt-0">
+                                  <button 
+                                      onClick={() => onEditProperty(prop.slug)}
+                                      className="text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center space-x-1">
+                                      <Icon name="edit" className="w-4 h-4" />
+                                      <span>Edit</span>
+                                  </button>
+                                  <button 
+                                      onClick={() => onSelectProperty(prop.slug)}
+                                      className="text-sm font-semibold text-green-600 hover:text-green-800">
+                                      View as Guest &rarr;
+                                  </button>
+                              </div>
+                          </div>
+                      </li>
+                  ))
+                ) : (
+                  <div className="p-6 text-center text-gray-500">You haven't created any properties yet.</div>
+                )}
             </ul>
+          )}
         </div>
       </main>
     </div>

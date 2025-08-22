@@ -1,53 +1,91 @@
 import React, { useState, useEffect } from 'react';
 import Icon from '../../components/ui/Icon';
-
-// --- Mock Data ---
-// In a real app, this would be fetched from Supabase based on the 'slug'.
-// This represents the data for the property being edited.
-const mockBookToEdit = {
-  'sunny-condo': {
-    title: 'Welcome to the Sunny Beachside Condo!',
-    welcomeMessage: 'We are so excited to have you! We hope you have a fantastic stay. Please make yourself at home and enjoy the sound of the waves.',
-    heroImage: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200&auto=format&fit=crop',
-    groupedSections: [
-      {
-        groupTitle: 'Arrival & Essentials',
-        items: [
-          { title: 'Welcome', icon: 'home', content: 'Welcome to your home away from home! We\'ve put this guide together to help you find everything you need for a comfortable and enjoyable stay.', images: [] },
-          { title: 'Meet Hosts', icon: 'users', content: 'We are Alex and Sam! We live nearby and are available if you need anything. We love this area and are happy to share our favorite spots with you.', images: [] },
-          { title: 'Check-in / Check-out', icon: 'key', content: 'Check-in is after 3 PM. The door code is 1234. To disarm the alarm, enter 5678 on the keypad by the door.\n\nCheck-out is at 11 AM. Please load the dishwasher and take out the trash.', images: ['https://placehold.co/400x300/F3F4F6/9CA3AF?text=Alarm+Keypad', 'https://placehold.co/400x300/F3F4F6/9CA3AF?text=Door+Lock'] },
-          { title: 'WiFi', icon: 'wifi', content: 'Network: BeachHouseNet\nPassword: sunshine2025', images: [] },
-        ]
-      },
-      {
-        groupTitle: 'About the Home',
-        items: [
-          { title: 'Amenities', icon: 'star', content: 'We provide fresh towels, linens, basic toiletries, and a fully equipped kitchen. You\'ll also find beach towels and chairs in the closet.', images: [] },
-          { title: 'House Rules', icon: 'shield', content: 'Please be respectful of our neighbors and keep noise to a minimum after 10 PM. No smoking indoors. Have fun!', images: [] },
-          { title: 'Kitchen', icon: 'utensils', content: 'The kitchen is fully equipped with an oven, stove, microwave, and dishwasher. Pots, pans, and utensils are in the cabinets.', images: ['https://placehold.co/400x300/F3F4F6/9CA3AF?text=Coffee+Maker', 'https://placehold.co/400x300/F3F4F6/9CA3AF?text=Oven+Controls'] },
-          { title: 'Pet Policy', icon: 'pawPrint', content: 'We love furry friends! Please keep pets off the furniture and clean up after them. A fee may apply for any damages.', images: [] },
-        ]
-      },
-      {
-        groupTitle: 'Local Guide & Help',
-        items: [
-          { title: 'Local Favourites', icon: 'mapPin', content: [{ name: 'The Salty Pelican', description: 'Great for fresh seafood with a beautiful view of the harbor.', url: 'https://example.com' }, { name: 'The Coffee Bean', description: 'Our favorite spot for morning coffee and pastries. The almond croissants are a must-try!', url: 'https://example.com' }], images: [] },
-          { title: 'Emergency', icon: 'alertTriangle', content: 'In case of an emergency, please dial 911. The nearest hospital is Seaside General, 10 minutes away. A fire extinguisher is under the sink.', images: [] },
-          { title: 'Contact', icon: 'mail', content: 'For non-urgent matters, you can reach us through the booking platform. For urgent issues, call or text us at 555-123-4567.', images: [] },
-        ]
-      }
-    ]
-  }
-};
+import { supabase } from '../../lib/supabaseClient';
 
 // --- Main Page Component ---
 const EditorPage = ({ slug, onSave, onExit }) => {
   const [bookData, setBookData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Simulate fetching the data for the property being edited.
-    setBookData(mockBookToEdit[slug]);
+    const fetchFullPropertyData = async () => {
+      setLoading(true);
+      setError(null);
+
+      // Fetch all data for the property, including related sections, favourites, and images
+      const { data, error } = await supabase
+        .from('wt_properties')
+        .select(`
+          *,
+          wt_sections (
+            *,
+            wt_images ( * )
+          ),
+          wt_local_favourites ( * )
+        `)
+        .eq('slug', slug)
+        .single();
+
+      if (error) {
+        console.error('Error fetching property data:', error);
+        setError('Failed to load property data.');
+      } else {
+        // We need to transform the data to match the front-end's grouped structure
+        const formattedData = {
+          ...data,
+          groupedSections: [
+            {
+              groupTitle: 'Arrival & Essentials',
+              items: data.wt_sections.filter(s => ['Welcome', 'Meet Hosts', 'Check-in / Check-out', 'WiFi'].includes(s.title))
+            },
+            {
+              groupTitle: 'About the Home',
+              items: data.wt_sections.filter(s => ['Amenities', 'House Rules', 'Kitchen', 'Pet Policy'].includes(s.title))
+            },
+            {
+              groupTitle: 'Local Guide & Help',
+              items: [
+                ...data.wt_sections.filter(s => ['Emergency', 'Contact'].includes(s.title)),
+                {
+                  title: 'Local Favourites',
+                  icon_name: 'mapPin',
+                  content: data.wt_local_favourites,
+                  images: []
+                }
+              ]
+            }
+          ]
+        };
+        setBookData(formattedData);
+      }
+      setLoading(false);
+    };
+
+    if (slug) {
+      fetchFullPropertyData();
+    }
   }, [slug]);
+
+  const handleSaveClick = async () => {
+    setSaving(true);
+    // Here we would call the onSave function passed from App.jsx
+    // which would handle the database update logic.
+    // For now, we'll just log it.
+    console.log("Saving data to Supabase...", bookData);
+    
+    // --- Placeholder for actual save logic ---
+    // 1. Update wt_properties table
+    // 2. Loop through sections and upsert into wt_sections
+    // 3. Loop through local_favourites and upsert/delete
+    // 4. Handle image uploads/deletes (more complex)
+    
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+    
+    onSave(bookData); // Pass data up to App.jsx
+    setSaving(false);
+  };
 
   // --- Handlers for form changes ---
   const handleInputChange = (e, field) => {
@@ -59,7 +97,7 @@ const EditorPage = ({ slug, onSave, onExit }) => {
     updatedData.groupedSections[groupIndex].items[itemIndex].content = value;
     setBookData(updatedData);
   };
-
+  
   const handleFavouriteChange = (groupIndex, itemIndex, favIndex, field, value) => {
     const updatedData = { ...bookData };
     updatedData.groupedSections[groupIndex].items[itemIndex].content[favIndex][field] = value;
@@ -73,13 +111,18 @@ const EditorPage = ({ slug, onSave, onExit }) => {
   };
 
   const removeFavourite = (groupIndex, itemIndex, favIndex) => {
-    const updatedData = { ...bookData };
-    updatedData.groupedSections[groupIndex].items[itemIndex].content.splice(favIndex, 1);
-    setBookData(updatedData);
+     const updatedData = { ...bookData };
+     updatedData.groupedSections[groupIndex].items[itemIndex].content.splice(favIndex, 1);
+     setBookData(updatedData);
   };
 
-  if (!bookData) {
-    return <div className="p-8">Loading editor...</div>;
+
+  if (loading) {
+    return <div className="p-8 text-center">Loading editor...</div>;
+  }
+  
+  if (error) {
+    return <div className="p-8 text-center text-red-500">{error}</div>;
   }
 
   return (
@@ -94,9 +137,9 @@ const EditorPage = ({ slug, onSave, onExit }) => {
                     <button onClick={onExit} className="font-semibold text-gray-600 hover:text-gray-900">
                         Exit
                     </button>
-                    <button onClick={() => onSave(bookData)} className="flex items-center justify-center bg-green-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-green-700">
+                    <button onClick={handleSaveClick} disabled={saving} className="flex items-center justify-center bg-green-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-green-700 disabled:bg-green-300">
                         <Icon name="save" className="w-5 h-5 mr-2" />
-                        Save Changes
+                        {saving ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>
             </div>
@@ -112,12 +155,12 @@ const EditorPage = ({ slug, onSave, onExit }) => {
                     </div>
                     <div>
                         <label htmlFor="welcomeMessage" className="font-semibold text-gray-700">Welcome Message</label>
-                        <textarea id="welcomeMessage" value={bookData.welcomeMessage} onChange={(e) => handleInputChange(e, 'welcomeMessage')} rows="3" className="mt-1 block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:border-green-500 focus:ring-green-500"></textarea>
+                        <textarea id="welcomeMessage" value={bookData.welcome_message} onChange={(e) => handleInputChange(e, 'welcome_message')} rows="3" className="mt-1 block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:border-green-500 focus:ring-green-500"></textarea>
                     </div>
                     <div>
                         <label className="font-semibold text-gray-700">Hero Image</label>
                         <div className="mt-2 flex items-center space-x-4">
-                            <img src={bookData.heroImage} alt="Hero" className="w-48 h-24 object-cover rounded-lg"/>
+                            <img src={bookData.hero_image_url} alt="Hero" className="w-48 h-24 object-cover rounded-lg"/>
                             <button className="flex items-center bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-lg hover:bg-gray-300">
                                 <Icon name="upload" className="w-5 h-5 mr-2" />
                                 Upload New
@@ -134,7 +177,7 @@ const EditorPage = ({ slug, onSave, onExit }) => {
                         {group.items.map((section, itemIndex) => (
                             <div key={itemIndex} className="bg-white p-6 rounded-xl shadow-lg">
                                 <div className="flex items-center space-x-3 mb-4">
-                                    <Icon name={section.icon} className="w-6 h-6 text-green-600" />
+                                    <Icon name={section.icon_name} className="w-6 h-6 text-green-600" />
                                     <h3 className="text-xl font-bold text-gray-800">{section.title}</h3>
                                 </div>
 
@@ -174,7 +217,7 @@ const EditorPage = ({ slug, onSave, onExit }) => {
                                         <div className="mt-2 flex items-center flex-wrap gap-4">
                                             {section.images.map((img, imgIndex) => (
                                                 <div key={imgIndex} className="relative">
-                                                    <img src={img} alt="" className="w-32 h-20 object-cover rounded-lg"/>
+                                                    <img src={img.image_url} alt="" className="w-32 h-20 object-cover rounded-lg"/>
                                                     <button className="absolute -top-2 -right-2 bg-white rounded-full p-1 text-red-500 shadow-md hover:bg-red-50">
                                                         <Icon name="trash" className="w-4 h-4" />
                                                     </button>

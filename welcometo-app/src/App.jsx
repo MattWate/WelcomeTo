@@ -96,10 +96,78 @@ function App() {
     setPage('editor');
   };
 
-  const handleSave = (updatedData) => {
-    console.log('Saving data...', updatedData);
-    alert('Changes saved! (Check the console to see the data)');
-    handleNavigateToDashboard();
+  // --- Main Save Function ---
+  const handleSave = async (bookData) => {
+    if (!user) {
+      alert("You must be logged in to save.");
+      return;
+    }
+
+    try {
+      // Step 1: Prepare and save the main property data
+      const propertySlug = bookData.slug || bookData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      
+      const { data: property, error: propError } = await supabase
+        .from('wt_properties')
+        .upsert({
+          id: bookData.id, // Will be null for new properties
+          user_id: user.id,
+          title: bookData.title,
+          slug: propertySlug,
+          welcome_message: bookData.welcome_message,
+          hero_image_url: bookData.hero_image_url,
+        })
+        .select()
+        .single();
+
+      if (propError) throw propError;
+
+      // Step 2: Prepare and save the sections
+      const allSections = bookData.groupedSections.flatMap(group => group.items);
+      
+      const sectionsToSave = allSections
+        .filter(item => !Array.isArray(item.content)) // Exclude 'Local Favourites'
+        .map((section, index) => ({
+          id: section.id, // Will be null for new sections
+          property_id: property.id,
+          title: section.title,
+          icon_name: section.icon_name,
+          content: section.content,
+          display_order: index,
+        }));
+
+      const { error: sectionsError } = await supabase.from('wt_sections').upsert(sectionsToSave);
+      if (sectionsError) throw sectionsError;
+
+      // Step 3: Prepare and save the local favourites
+      const favouritesSection = allSections.find(item => item.title === 'Local Favourites');
+      if (favouritesSection) {
+        // First, delete all existing favourites for this property to handle removals
+        const { error: deleteFavError } = await supabase.from('wt_local_favourites').delete().eq('property_id', property.id);
+        if (deleteFavError) throw deleteFavError;
+
+        // Then, insert the current list of favourites
+        const favouritesToSave = favouritesSection.content.map((fav, index) => ({
+          property_id: property.id,
+          name: fav.name,
+          description: fav.description,
+          url: fav.url,
+          display_order: index,
+        }));
+        
+        if (favouritesToSave.length > 0) {
+            const { error: favError } = await supabase.from('wt_local_favourites').insert(favouritesToSave);
+            if (favError) throw favError;
+        }
+      }
+
+      alert('Property saved successfully!');
+      handleNavigateToDashboard();
+
+    } catch (error) {
+      console.error('Error saving property:', error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
   const renderAppContent = () => {
@@ -113,7 +181,7 @@ function App() {
             onLogout={handleLogout}
             onSelectProperty={handleSelectProperty}
             onEditProperty={handleEditProperty}
-            onCreateNew={handleCreateNew} // Pass the new handler
+            onCreateNew={handleCreateNew}
           />
         );
       case 'editor':

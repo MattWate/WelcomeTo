@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Icon from '../../components/ui/Icon';
-import { supabase } from '../../lib/supabaseClient'; // Import the Supabase client
+import { supabase } from '../../lib/supabaseClient';
 
-// --- Main Page Component ---
-const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty }) => {
+const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty, onCreateNew }) => {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -16,10 +14,9 @@ const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty }) => 
       setLoading(true);
       setError(null);
 
-      // Fetch properties from Supabase that belong to the current user
       const { data, error } = await supabase
         .from('wt_properties')
-        .select('id, name, slug')
+        .select('id, title, slug') // Changed 'name' to 'title' to match DB schema
         .eq('user_id', user.id);
 
       if (error) {
@@ -32,12 +29,7 @@ const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty }) => 
     };
 
     fetchProperties();
-  }, [user]); // Re-fetch properties if the user changes
-
-  const handleCreateNewClick = () => {
-    setNotification("This feature will be available soon!");
-    setTimeout(() => setNotification(null), 3000);
-  };
+  }, [user]);
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -58,16 +50,14 @@ const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty }) => 
       </header>
 
       <main className="container mx-auto p-6 md:p-8">
-        {notification && (
-          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md mb-6" role="alert">
-            <p>{notification}</p>
-          </div>
-        )}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 mb-4 sm:mb-0">Your Properties</h1>
-            <button onClick={handleCreateNewClick} className="flex items-center justify-center bg-green-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-green-700 transition-transform hover:scale-105">
+            <button 
+              onClick={onCreateNew} // This now calls the function from App.jsx
+              className="flex items-center justify-center bg-green-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-green-700 transition-transform hover:scale-105"
+            >
                 <Icon name="plus" className="w-5 h-5 mr-2" />
-                Create New
+                Create New Property
             </button>
         </div>
         
@@ -81,7 +71,7 @@ const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty }) => 
                       <li key={prop.id} className="p-4 md:p-6 hover:bg-gray-50 transition-colors">
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                               <div className="mb-4 sm:mb-0">
-                                  <h3 className="text-xl font-semibold text-gray-800">{prop.name}</h3>
+                                  <h3 className="text-xl font-semibold text-gray-800">{prop.title}</h3>
                                   <div className="flex items-center text-sm text-gray-500 mt-2">
                                       <Icon name="link" className="w-4 h-4 mr-2" />
                                       <span>/{prop.slug}</span>
@@ -104,7 +94,7 @@ const DashboardPage = ({ user, onLogout, onSelectProperty, onEditProperty }) => 
                       </li>
                   ))
                 ) : (
-                  <div className="p-6 text-center text-gray-500">You haven't created any properties yet.</div>
+                  <div className="p-6 text-center text-gray-500">You haven't created any properties yet. Click "Create New Property" to get started.</div>
                 )}
             </ul>
           )}

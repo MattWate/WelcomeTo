@@ -2,6 +2,42 @@ import React, { useState, useEffect } from 'react';
 import Icon from '../../components/ui/Icon';
 import { supabase } from '../../lib/supabaseClient';
 
+// A blank template for creating a new welcome book
+const blankBookTemplate = {
+  title: '',
+  welcome_message: '',
+  hero_image_url: 'https://placehold.co/1200x600/e2e8f0/a0aec0?text=Upload+a+Hero+Image',
+  groupedSections: [
+    {
+      groupTitle: 'Arrival & Essentials',
+      items: [
+        { title: 'Welcome', icon_name: 'home', content: '', images: [] },
+        { title: 'Meet Hosts', icon_name: 'users', content: '', images: [] },
+        { title: 'Check-in / Check-out', icon_name: 'key', content: '', images: [] },
+        { title: 'WiFi', icon_name: 'wifi', content: '', images: [] },
+      ]
+    },
+    {
+      groupTitle: 'About the Home',
+      items: [
+        { title: 'Amenities', icon_name: 'star', content: '', images: [] },
+        { title: 'House Rules', icon_name: 'shield', content: '', images: [] },
+        { title: 'Kitchen', icon_name: 'utensils', content: '', images: [] },
+        { title: 'Pet Policy', icon_name: 'pawPrint', content: '', images: [] },
+      ]
+    },
+    {
+      groupTitle: 'Local Guide & Help',
+      items: [
+        { title: 'Emergency', icon_name: 'alertTriangle', content: '', images: [] },
+        { title: 'Contact', icon_name: 'mail', content: '', images: [] },
+        { title: 'Local Favourites', icon_name: 'mapPin', content: [], images: [] }
+      ]
+    }
+  ]
+};
+
+
 // --- Main Page Component ---
 const EditorPage = ({ slug, onSave, onExit }) => {
   const [bookData, setBookData] = useState(null);
@@ -14,17 +50,9 @@ const EditorPage = ({ slug, onSave, onExit }) => {
       setLoading(true);
       setError(null);
 
-      // Fetch all data for the property, including related sections, favourites, and images
       const { data, error } = await supabase
         .from('wt_properties')
-        .select(`
-          *,
-          wt_sections (
-            *,
-            wt_images ( * )
-          ),
-          wt_local_favourites ( * )
-        `)
+        .select(`*, wt_sections (*, wt_images (*)), wt_local_favourites (*)`)
         .eq('slug', slug)
         .single();
 
@@ -32,7 +60,6 @@ const EditorPage = ({ slug, onSave, onExit }) => {
         console.error('Error fetching property data:', error);
         setError('Failed to load property data.');
       } else {
-        // We need to transform the data to match the front-end's grouped structure
         const formattedData = {
           ...data,
           groupedSections: [
@@ -63,27 +90,21 @@ const EditorPage = ({ slug, onSave, onExit }) => {
       setLoading(false);
     };
 
-    if (slug) {
+    if (slug === 'new') {
+      // If we are creating a new property, use the blank template
+      setBookData(blankBookTemplate);
+      setLoading(false);
+    } else if (slug) {
+      // Otherwise, fetch the existing property data
       fetchFullPropertyData();
     }
   }, [slug]);
 
   const handleSaveClick = async () => {
     setSaving(true);
-    // Here we would call the onSave function passed from App.jsx
-    // which would handle the database update logic.
-    // For now, we'll just log it.
     console.log("Saving data to Supabase...", bookData);
-    
-    // --- Placeholder for actual save logic ---
-    // 1. Update wt_properties table
-    // 2. Loop through sections and upsert into wt_sections
-    // 3. Loop through local_favourites and upsert/delete
-    // 4. Handle image uploads/deletes (more complex)
-    
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-    
-    onSave(bookData); // Pass data up to App.jsx
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    onSave(bookData);
     setSaving(false);
   };
 

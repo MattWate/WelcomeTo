@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './lib/supabaseClient'; // Import the Supabase client
+import { supabase } from './lib/supabaseClient';
 
 // --- Page Imports ---
 import LandingPage from './features/landing/LandingPage.jsx';
@@ -10,64 +10,57 @@ import LoginPage from './features/auth/LoginPage.jsx';
 
 
 function App() {
-  // --- State Management ---
   const [view, setView] = useState('landing');
   const [page, setPage] = useState('loading');
   const [user, setUser] = useState(null);
   const [slug, setSlug] = useState(null);
 
-  // --- Supabase Auth Listener ---
   useEffect(() => {
-    // Check for an initial session
     const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
-      // Finished loading, now run the routing logic
       handleRouting(session?.user ?? null);
     };
-
     getSession();
 
-    // Listen for changes in authentication state (login, logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
-
-    // Cleanup subscription on component unmount
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- Routing Logic ---
+  useEffect(() => {
+    handleRouting(user);
+  }, [user]);
+
   const handleRouting = (currentUser) => {
     const path = window.location.pathname.split('/').filter(Boolean);
+    const pageSlug = path[0];
     const action = path[1];
 
-    if (path.length === 0) {
+    if (!pageSlug) {
       if (currentUser) {
         setView('app');
         setPage('dashboard');
       } else {
         setView('landing');
       }
+    } else if (pageSlug === 'editor' && action === 'new' && currentUser) {
+      setView('app');
+      setSlug('new');
+      setPage('editor');
     } else {
       setView('app');
       if (action === 'edit' && currentUser) {
-        setSlug(path[0]);
+        setSlug(pageSlug);
         setPage('editor');
       } else {
-        setSlug(path[0]);
+        setSlug(pageSlug);
         setPage('guest');
       }
     }
   };
-  
-  // Re-run routing logic whenever the user state changes
-  useEffect(() => {
-    handleRouting(user);
-  }, [user]);
 
-
-  // --- Event Handlers ---
   const handleLoginClick = () => {
     setView('app');
     setPage('login');
@@ -97,13 +90,18 @@ function App() {
     setPage('editor');
   };
 
+  const handleCreateNew = () => {
+    window.history.pushState({}, '', '/editor/new');
+    setSlug('new');
+    setPage('editor');
+  };
+
   const handleSave = (updatedData) => {
     console.log('Saving data...', updatedData);
     alert('Changes saved! (Check the console to see the data)');
     handleNavigateToDashboard();
   };
 
-  // --- Render Logic ---
   const renderAppContent = () => {
     switch (page) {
       case 'login':
@@ -115,6 +113,7 @@ function App() {
             onLogout={handleLogout}
             onSelectProperty={handleSelectProperty}
             onEditProperty={handleEditProperty}
+            onCreateNew={handleCreateNew} // Pass the new handler
           />
         );
       case 'editor':

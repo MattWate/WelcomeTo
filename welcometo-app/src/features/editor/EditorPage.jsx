@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../../components/ui/Icon';
 import { supabase } from '../../lib/supabaseClient';
 
-// A blank template for creating a new welcome book
 const blankBookTemplate = {
   title: '',
   welcome_message: '',
@@ -37,8 +36,6 @@ const blankBookTemplate = {
   ]
 };
 
-
-// --- Main Page Component ---
 const EditorPage = ({ slug, onSave, onExit }) => {
   const [bookData, setBookData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -46,7 +43,6 @@ const EditorPage = ({ slug, onSave, onExit }) => {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   
-  // Create refs for the hidden file inputs
   const heroImageInputRef = useRef(null);
   const sectionImageInputRef = useRef(null);
 
@@ -122,15 +118,21 @@ const EditorPage = ({ slug, onSave, onExit }) => {
       return;
     }
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data } = supabase.storage
       .from('property_images')
       .getPublicUrl(filePath);
+
+    const publicUrl = data.publicUrl;
 
     if (isHeroImage) {
       setBookData(prev => ({ ...prev, hero_image_url: publicUrl }));
     } else {
       const updatedData = { ...bookData };
       const newImage = { image_url: publicUrl, caption: '' };
+      // Ensure wt_images array exists
+      if (!updatedData.groupedSections[groupIndex].items[itemIndex].wt_images) {
+          updatedData.groupedSections[groupIndex].items[itemIndex].wt_images = [];
+      }
       updatedData.groupedSections[groupIndex].items[itemIndex].wt_images.push(newImage);
       setBookData(updatedData);
     }
@@ -156,11 +158,10 @@ const EditorPage = ({ slug, onSave, onExit }) => {
 
   const handleSaveClick = async () => {
     setSaving(true);
-    onSave(bookData); // Pass data up to App.jsx to handle the DB logic
+    onSave(bookData);
     setSaving(false);
   };
 
-  // --- Handlers for form changes ---
   const handleInputChange = (e, field) => {
     setBookData(prev => ({ ...prev, [field]: e.target.value }));
   };

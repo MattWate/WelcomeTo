@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../../components/ui/Icon';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -11,27 +11,27 @@ const blankBookTemplate = {
     {
       groupTitle: 'Arrival & Essentials',
       items: [
-        { title: 'Welcome', icon_name: 'home', content: '', images: [] },
-        { title: 'Meet Hosts', icon_name: 'users', content: '', images: [] },
-        { title: 'Check-in / Check-out', icon_name: 'key', content: '', images: [] },
-        { title: 'WiFi', icon_name: 'wifi', content: '', images: [] },
+        { title: 'Welcome', icon_name: 'home', content: '', wt_images: [] },
+        { title: 'Meet Hosts', icon_name: 'users', content: '', wt_images: [] },
+        { title: 'Check-in / Check-out', icon_name: 'key', content: '', wt_images: [] },
+        { title: 'WiFi', icon_name: 'wifi', content: '', wt_images: [] },
       ]
     },
     {
       groupTitle: 'About the Home',
       items: [
-        { title: 'Amenities', icon_name: 'star', content: '', images: [] },
-        { title: 'House Rules', icon_name: 'shield', content: '', images: [] },
-        { title: 'Kitchen', icon_name: 'utensils', content: '', images: [] },
-        { title: 'Pet Policy', icon_name: 'pawPrint', content: '', images: [] },
+        { title: 'Amenities', icon_name: 'star', content: '', wt_images: [] },
+        { title: 'House Rules', icon_name: 'shield', content: '', wt_images: [] },
+        { title: 'Kitchen', icon_name: 'utensils', content: '', wt_images: [] },
+        { title: 'Pet Policy', icon_name: 'pawPrint', content: '', wt_images: [] },
       ]
     },
     {
       groupTitle: 'Local Guide & Help',
       items: [
-        { title: 'Emergency', icon_name: 'alertTriangle', content: '', images: [] },
-        { title: 'Contact', icon_name: 'mail', content: '', images: [] },
-        { title: 'Local Favourites', icon_name: 'mapPin', content: [], images: [] }
+        { title: 'Emergency', icon_name: 'alertTriangle', content: '', wt_images: [] },
+        { title: 'Contact', icon_name: 'mail', content: '', wt_images: [] },
+        { title: 'Local Favourites', icon_name: 'mapPin', content: [], wt_images: [] }
       ]
     }
   ]
@@ -44,6 +44,11 @@ const EditorPage = ({ slug, onSave, onExit }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  
+  // Create refs for the hidden file inputs
+  const heroImageInputRef = useRef(null);
+  const sectionImageInputRef = useRef(null);
 
   useEffect(() => {
     const fetchFullPropertyData = async () => {
@@ -79,7 +84,7 @@ const EditorPage = ({ slug, onSave, onExit }) => {
                   title: 'Local Favourites',
                   icon_name: 'mapPin',
                   content: data.wt_local_favourites,
-                  images: []
+                  wt_images: []
                 }
               ]
             }
@@ -91,20 +96,67 @@ const EditorPage = ({ slug, onSave, onExit }) => {
     };
 
     if (slug === 'new') {
-      // If we are creating a new property, use the blank template
       setBookData(blankBookTemplate);
       setLoading(false);
     } else if (slug) {
-      // Otherwise, fetch the existing property data
       fetchFullPropertyData();
     }
   }, [slug]);
 
+  const handleImageUpload = async (file, isHeroImage = false, groupIndex, itemIndex) => {
+    if (!file) return;
+
+    setUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('property_images')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error('Error uploading image:', uploadError);
+      alert('Failed to upload image.');
+      setUploading(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('property_images')
+      .getPublicUrl(filePath);
+
+    if (isHeroImage) {
+      setBookData(prev => ({ ...prev, hero_image_url: publicUrl }));
+    } else {
+      const updatedData = { ...bookData };
+      const newImage = { image_url: publicUrl, caption: '' };
+      updatedData.groupedSections[groupIndex].items[itemIndex].wt_images.push(newImage);
+      setBookData(updatedData);
+    }
+    setUploading(false);
+  };
+  
+  const handleImageDelete = async (imageUrl, groupIndex, itemIndex, imgIndex) => {
+      const fileName = imageUrl.split('/').pop();
+      
+      const { error } = await supabase.storage.from('property_images').remove([fileName]);
+
+      if (error) {
+          console.error('Error deleting image:', error);
+          alert('Failed to delete image.');
+          return;
+      }
+      
+      const updatedData = { ...bookData };
+      updatedData.groupedSections[groupIndex].items[itemIndex].wt_images.splice(imgIndex, 1);
+      setBookData(updatedData);
+  };
+
+
   const handleSaveClick = async () => {
     setSaving(true);
-    console.log("Saving data to Supabase...", bookData);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    onSave(bookData);
+    onSave(bookData); // Pass data up to App.jsx to handle the DB logic
     setSaving(false);
   };
 
@@ -158,9 +210,9 @@ const EditorPage = ({ slug, onSave, onExit }) => {
                     <button onClick={onExit} className="font-semibold text-gray-600 hover:text-gray-900">
                         Exit
                     </button>
-                    <button onClick={handleSaveClick} disabled={saving} className="flex items-center justify-center bg-green-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-green-700 disabled:bg-green-300">
+                    <button onClick={handleSaveClick} disabled={saving || uploading} className="flex items-center justify-center bg-green-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-green-700 disabled:bg-green-300">
                         <Icon name="save" className="w-5 h-5 mr-2" />
-                        {saving ? 'Saving...' : 'Save Changes'}
+                        {saving ? 'Saving...' : (uploading ? 'Uploading...' : 'Save Changes')}
                     </button>
                 </div>
             </div>
@@ -182,9 +234,10 @@ const EditorPage = ({ slug, onSave, onExit }) => {
                         <label className="font-semibold text-gray-700">Hero Image</label>
                         <div className="mt-2 flex items-center space-x-4">
                             <img src={bookData.hero_image_url} alt="Hero" className="w-48 h-24 object-cover rounded-lg"/>
-                            <button className="flex items-center bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-lg hover:bg-gray-300">
+                            <input type="file" ref={heroImageInputRef} onChange={(e) => handleImageUpload(e.target.files[0], true)} style={{ display: 'none' }} accept="image/*" />
+                            <button onClick={() => heroImageInputRef.current.click()} disabled={uploading} className="flex items-center bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-lg hover:bg-gray-300 disabled:bg-gray-100">
                                 <Icon name="upload" className="w-5 h-5 mr-2" />
-                                Upload New
+                                {uploading ? 'Uploading...' : 'Upload New'}
                             </button>
                         </div>
                     </div>
@@ -232,19 +285,20 @@ const EditorPage = ({ slug, onSave, onExit }) => {
                                     <textarea value={section.content} onChange={(e) => handleSectionChange(groupIndex, itemIndex, e.target.value)} rows="4" className="block w-full px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-md"></textarea>
                                 )}
 
-                                {section.images !== undefined && (
+                                {section.wt_images !== undefined && (
                                     <div className="mt-4">
                                         <label className="font-semibold text-gray-700">Images</label>
                                         <div className="mt-2 flex items-center flex-wrap gap-4">
-                                            {section.images.map((img, imgIndex) => (
+                                            {section.wt_images.map((img, imgIndex) => (
                                                 <div key={imgIndex} className="relative">
                                                     <img src={img.image_url} alt="" className="w-32 h-20 object-cover rounded-lg"/>
-                                                    <button className="absolute -top-2 -right-2 bg-white rounded-full p-1 text-red-500 shadow-md hover:bg-red-50">
+                                                    <button onClick={() => handleImageDelete(img.image_url, groupIndex, itemIndex, imgIndex)} className="absolute -top-2 -right-2 bg-white rounded-full p-1 text-red-500 shadow-md hover:bg-red-50">
                                                         <Icon name="trash" className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                             ))}
-                                            <button className="flex items-center justify-center w-32 h-20 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 hover:text-gray-700">
+                                            <input type="file" ref={sectionImageInputRef} onChange={(e) => handleImageUpload(e.target.files[0], false, groupIndex, itemIndex)} style={{ display: 'none' }} accept="image/*" />
+                                            <button onClick={() => sectionImageInputRef.current.click()} disabled={uploading} className="flex items-center justify-center w-32 h-20 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 hover:text-gray-700 disabled:bg-gray-50">
                                                 <Icon name="upload" className="w-6 h-6" />
                                             </button>
                                         </div>

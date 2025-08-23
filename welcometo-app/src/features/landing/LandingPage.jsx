@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Icon from '../../components/ui/Icon';
-import { supabase } from '../../lib/supabaseClient'; // Import Supabase client
+import { supabase } from '../../lib/supabaseClient';
 
 const LandingPage = ({ onLoginClick }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,14 +27,13 @@ const LandingPage = ({ onLoginClick }) => {
       console.error('Error inserting lead:', error);
     } else {
       setFormStatus({ loading: false, error: null, success: true });
-      setFormState({ name: '', email: '', phone: '' }); // Reset form
+      setFormState({ name: '', email: '', phone: '' });
     }
   };
 
   return (
     <>
       <div className="bg-white text-gray-800 font-sans">
-        {/* Header */}
         <header className="absolute top-0 left-0 w-full z-10 bg-white bg-opacity-90 backdrop-blur-sm shadow-sm">
           <div className="container mx-auto px-6 py-4 flex justify-between items-center">
             <div className="flex items-center space-x-2">
@@ -54,7 +53,6 @@ const LandingPage = ({ onLoginClick }) => {
           </div>
         </header>
 
-        {/* Hero Section */}
         <main>
           <section className="relative h-[60vh] md:h-[80vh] flex items-center justify-center text-center text-white">
             <div className="absolute top-0 left-0 w-full h-full bg-black opacity-40"></div>
@@ -81,12 +79,38 @@ const LandingPage = ({ onLoginClick }) => {
             </div>
           </section>
 
-          {/* Features Section */}
           <section id="features" className="py-20 bg-gray-50">
-            {/* Feature content remains the same */}
+            <div className="container mx-auto px-6">
+              <div className="text-center mb-16">
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-800">Everything Your Guests Need, in One Place</h2>
+                <p className="mt-4 text-lg text-gray-600">From WiFi codes to local tips, empower your guests with instant information.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
+                <div className="text-center">
+                  <div className="flex items-center justify-center w-16 h-16 bg-green-100 text-green-600 rounded-full mx-auto mb-4">
+                    <Icon name="wifi" className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">Essential Info</h3>
+                  <p className="text-gray-600">Share WiFi details, check-in instructions, and appliance guides with ease.</p>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center w-16 h-16 bg-green-100 text-green-600 rounded-full mx-auto mb-4">
+                    <Icon name="mapPin" className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">Local Favourites</h3>
+                  <p className="text-gray-600">Curate your personal recommendations for restaurants, cafes, and attractions.</p>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center w-16 h-16 bg-green-100 text-green-600 rounded-full mx-auto mb-4">
+                    <Icon name="star" className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">Elevate Your Brand</h3>
+                  <p className="text-gray-600">Add your logo and property photos for a professional, branded experience.</p>
+                </div>
+              </div>
+            </div>
           </section>
 
-          {/* Pricing Section */}
           <section id="pricing" className="py-20 bg-white">
             <div className="container mx-auto px-6">
               <div className="text-center mb-16">
@@ -94,7 +118,6 @@ const LandingPage = ({ onLoginClick }) => {
                 <p className="mt-4 text-lg text-gray-600">Choose the plan that's right for you. All prices in ZAR.</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                {/* Single Property */}
                 <div className="border border-gray-200 rounded-xl p-8 text-center flex flex-col">
                   <h3 className="text-2xl font-semibold">Solo Host</h3>
                   <p className="text-gray-500 mt-2">Perfect for your first property.</p>
@@ -103,7 +126,6 @@ const LandingPage = ({ onLoginClick }) => {
                   <div className="flex-grow"></div>
                   <button onClick={() => setIsModalOpen(true)} className="mt-8 w-full bg-gray-100 text-green-700 font-semibold py-3 rounded-lg hover:bg-gray-200">Get Started</button>
                 </div>
-                {/* Up to 5 Properties */}
                 <div className="border-2 border-green-600 rounded-xl p-8 text-center relative shadow-xl flex flex-col">
                   <span className="bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full absolute -top-4 right-8">MOST POPULAR</span>
                   <h3 className="text-2xl font-semibold text-green-700">Property Manager</h3>
@@ -113,7 +135,6 @@ const LandingPage = ({ onLoginClick }) => {
                   <div className="flex-grow"></div>
                   <button onClick={() => setIsModalOpen(true)} className="mt-8 w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700">Get Started</button>
                 </div>
-                {/* Over 5 Properties */}
                 <div className="border border-gray-200 rounded-xl p-8 text-center flex flex-col">
                   <h3 className="text-2xl font-semibold">Professional</h3>
                   <p className="text-gray-500 mt-2">For agencies and large portfolios.</p>
@@ -126,7 +147,32 @@ const LandingPage = ({ onLoginClick }) => {
             </div>
           </section>
           
-          {/* Testimonial & CTA Sections remain the same */}
+          <section className="py-20 bg-gray-50">
+            <div className="container mx-auto px-6 text-center">
+               <h2 className="text-3xl md:text-4xl font-bold text-gray-800">Trusted by Hosts Worldwide</h2>
+               <div className="mt-10 max-w-3xl mx-auto">
+                  <div className="bg-white p-8 rounded-xl shadow-md">
+                      <p className="text-xl italic text-gray-700">"WelcomeTo has been a game-changer. I spend less time answering repetitive questions and my guests constantly mention how helpful the welcome book is in their reviews!"</p>
+                      <p className="mt-6 font-semibold text-gray-800">- Sarah J, Airbnb Superhost</p>
+                  </div>
+               </div>
+            </div>
+          </section>
+
+          <section className="py-20 bg-green-600 text-white">
+            <div className="container mx-auto px-6 text-center">
+              <h2 className="text-3xl md:text-4xl font-bold">Ready to Impress Your Guests?</h2>
+              <p className="mt-4 text-lg text-green-100 max-w-2xl mx-auto">Join hundreds of hosts who are providing a better guest experience.</p>
+              <div className="mt-8">
+                <button 
+                  onClick={() => setIsModalOpen(true)}
+                  className="bg-white text-green-700 font-bold px-8 py-4 rounded-lg text-lg hover:bg-gray-100 transition-transform hover:scale-105 shadow-lg"
+                >
+                  Get Started Today
+                </button>
+              </div>
+            </div>
+          </section>
         </main>
         <footer className="bg-gray-800 text-white">
           <div className="container mx-auto px-6 py-8 text-center">
@@ -135,7 +181,6 @@ const LandingPage = ({ onLoginClick }) => {
         </footer>
       </div>
 
-      {/* Lead Capture Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full relative">

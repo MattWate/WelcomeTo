@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css' // We'll create this file for global styles
+import { Toaster } from "react-hot-toast";
 
 // Find the root element in your HTML where the app will be mounted.
 const rootElement = document.getElementById('root');
@@ -14,5 +15,7 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <App />
+    <Toaster />
   </React.StrictMode>
 );
+

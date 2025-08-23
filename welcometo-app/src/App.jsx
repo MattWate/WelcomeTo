@@ -107,46 +107,79 @@ function App() {
       // Step 1: Prepare and save the main property data
       const propertySlug = bookData.slug || bookData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       
+      const propertyPayload = {
+        user_id: user.id,
+        title: bookData.title,
+        slug: propertySlug,
+        welcome_message: bookData.welcome_message,
+        hero_image_url: bookData.hero_image_url,
+      };
+      if (bookData.id) {
+        propertyPayload.id = bookData.id;
+      }
+
       const { data: property, error: propError } = await supabase
         .from('wt_properties')
-        .upsert({
-          id: bookData.id, // Will be null for new properties
-          user_id: user.id,
-          title: bookData.title,
-          slug: propertySlug,
-          welcome_message: bookData.welcome_message,
-          hero_image_url: bookData.hero_image_url,
-        })
+        .upsert(propertyPayload)
         .select()
         .single();
 
       if (propError) throw propError;
 
-      // Step 2: Prepare and save the sections
+      // Step 2: Prepare and save the sections and their images
       const allSections = bookData.groupedSections.flatMap(group => group.items);
       
-      const sectionsToSave = allSections
-        .filter(item => !Array.isArray(item.content)) // Exclude 'Local Favourites'
-        .map((section, index) => ({
-          id: section.id, // Will be null for new sections
+      for (const section of allSections) {
+        if (Array.isArray(section.content)) continue; // Skip 'Local Favourites' for now
+
+        const sectionPayload = {
           property_id: property.id,
           title: section.title,
           icon_name: section.icon_name,
           content: section.content,
-          display_order: index,
-        }));
+          display_order: allSections.indexOf(section),
+        };
+        if (section.id) {
+          sectionPayload.id = section.id;
+        }
+        
+        const { data: savedSection, error: sectionError } = await supabase.from('wt_sections').upsert(sectionPayload).select().single();
+        if (sectionError) throw sectionError;
 
-      const { error: sectionsError } = await supabase.from('wt_sections').upsert(sectionsToSave);
-      if (sectionsError) throw sectionsError;
+        // Now handle images for this section
+        if (section.wt_images) {
+            // Delete images that are no longer present
+            const existingImageUrls = section.wt_images.map(img => img.image_url);
+            const { data: currentImages, error: fetchError } = await supabase.from('wt_images').select('image_url').eq('section_id', savedSection.id);
+            if(fetchError) throw fetchError;
+
+            const imagesToDelete = currentImages.filter(img => !existingImageUrls.includes(img.image_url));
+            if (imagesToDelete.length > 0) {
+                const { error: deleteImgError } = await supabase.from('wt_images').delete().in('image_url', imagesToDelete.map(i => i.image_url));
+                if (deleteImgError) throw deleteImgError;
+            }
+
+            // Upsert current images
+            const imagesToSave = section.wt_images.map((img, index) => ({
+                id: img.id,
+                section_id: savedSection.id,
+                image_url: img.image_url,
+                caption: img.caption,
+                display_order: index
+            }));
+            if (imagesToSave.length > 0) {
+                const { error: imgError } = await supabase.from('wt_images').upsert(imagesToSave);
+                if (imgError) throw imgError;
+            }
+        }
+      }
 
       // Step 3: Prepare and save the local favourites
       const favouritesSection = allSections.find(item => item.title === 'Local Favourites');
       if (favouritesSection) {
-        // First, delete all existing favourites for this property to handle removals
         const { error: deleteFavError } = await supabase.from('wt_local_favourites').delete().eq('property_id', property.id);
         if (deleteFavError) throw deleteFavError;
 
-        // Then, insert the current list of favourites
         const favouritesToSave = favouritesSection.content.map((fav, index) => ({
           property_id: property.id,
           name: fav.name,

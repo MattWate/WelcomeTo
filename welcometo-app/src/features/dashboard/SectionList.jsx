@@ -25,13 +25,16 @@ export default function SectionList({ propertyId, activeSectionId, setActiveSect
     if (!propertyId) return;
     (async () => {
       const { data, error } = await supabase
-        .from("sections")
-        .select("id,title,order_index")
+        .from("wt_sections")
+        .select("id,title,display_order")
         .eq("property_id", propertyId)
-        .order("order_index", { ascending: true });
+        .order("display_order", { ascending: true });
       if (error) return console.error(error);
       setSections(data || []);
-      if (!activeSectionId && data?.length) setActiveSectionId(data[0].id);
+      if (!activeSectionId && data?.length) {
+        setActiveSectionId(data[0].id);
+        localStorage.setItem("active_section_id", data[0].id);
+      }
     })();
   }, [propertyId]);
 
@@ -40,18 +43,19 @@ export default function SectionList({ propertyId, activeSectionId, setActiveSect
     if (!over || active.id === over.id) return;
     const oldIndex = sections.findIndex(s => s.id === active.id);
     const newIndex = sections.findIndex(s => s.id === over.id);
-    const newOrder = arrayMove(sections, oldIndex, newIndex).map((s, i) => ({ ...s, order_index: i }));
+    const newOrder = arrayMove(sections, oldIndex, newIndex).map((s, i) => ({ ...s, display_order: i }));
     setSections(newOrder); // optimistic
-    const updates = newOrder.map(s => ({ id: s.id, order_index: s.order_index }));
-    const { error } = await supabase.from("sections").upsert(updates);
+
+    // Persist order (batch upsert)
+    const updates = newOrder.map(s => ({ id: s.id, display_order: s.display_order }));
+    const { error } = await supabase.from("wt_sections").upsert(updates);
     if (error) {
       toast.error("Reorder failed");
-      // refetch
       const { data } = await supabase
-        .from("sections")
-        .select("id,title,order_index")
+        .from("wt_sections")
+        .select("id,title,display_order")
         .eq("property_id", propertyId)
-        .order("order_index", { ascending: true });
+        .order("display_order", { ascending: true });
       setSections(data || []);
     }
   }
@@ -60,7 +64,6 @@ export default function SectionList({ propertyId, activeSectionId, setActiveSect
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm text-slate-500">Sections</h4>
-        {/* Optional: add new section button */}
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>

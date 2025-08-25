@@ -3,7 +3,7 @@ import PropertyList from "./PropertyList";
 import SectionList from "./SectionList";
 import SectionEditor from "../editor/SectionEditor.jsx";
 import PublishBar from "../../components/ui/PublishBar";
-import { Header } from "../../components/layout/Header";
+import Header from "../../components/layout/Header";
 
 export default function DashboardPage() {
   const [activeSectionId, setActiveSectionId] = React.useState(
@@ -34,5 +34,6 @@ export default function DashboardPage() {
     </div>
   );
 }
+
 
 

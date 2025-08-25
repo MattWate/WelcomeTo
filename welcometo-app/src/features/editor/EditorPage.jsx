@@ -385,7 +385,103 @@ export default function EditorPage({ slug, onSave, onExit }) {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-100">
-        <Header title="WelcomeTo Editor" right={<d
+ if (loading) {
+  return (
+    <div className="min-h-screen bg-slate-100">
+      <Header
+        title="WelcomeTo Editor"
+        right={<div className="text-sm text-slate-500">Loading…</div>}
+      />
+    </div>
+  );
+}
+
+return (
+  <div className="min-h-screen bg-slate-100">
+    <Header
+      title="WelcomeTo Editor"
+      right={
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => onExit?.()}>Exit</Button>
+          <Button onClick={handleSaveClick} disabled={saving}>
+            {saving ? "Saving…" : "Save Changes"}
+          </Button>
+        </div>
+      }
+    />
+
+    <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-8">
+      {/* Main details card */}
+      <section className="rounded-2xl border bg-white p-6 shadow-sm">
+        <h2 className="text-2xl font-semibold text-slate-800 mb-4">Main Details</h2>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Property Title</label>
+            <input
+              className="w-full border rounded-lg px-3 py-2"
+              value={property.title}
+              onChange={(e) => setProperty((p) => ({ ...p, title: e.target.value }))}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Welcome Message</label>
+            <textarea
+              className="w-full min-h-[90px] border rounded-lg px-3 py-2"
+              value={property.welcome_message}
+              onChange={(e) => setProperty((p) => ({ ...p, welcome_message: e.target.value }))}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Hero Image</label>
+            <div className="flex items-center gap-3">
+              {property.hero_image_url ? (
+                <img
+                  src={property.hero_image_url}
+                  alt=""
+                  className="h-24 w-36 object-cover rounded-lg border"
+                />
+              ) : (
+                <div className="h-24 w-36 rounded-lg border bg-slate-50" />
+              )}
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <input type="file" className="hidden" accept="image/*" onChange={uploadHero} />
+                <Button variant="outline">Upload New</Button>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Groups & sections */}
+      {groups.map((g, gi) => (
+        <section key={gi}>
+          {g.items?.length ? (
+            <>
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">{g.group}</h3>
+              <div className="space-y-4">
+                {g.items.map((it, ii) => (
+                  <SectionCard
+                    key={`${gi}-${ii}-${it.id || it.title}`}
+                    section={it}
+                    onChange={(updated) => updateSection(updated)}
+                    onUploadImage={uploadSectionImage}
+                    onRemoveImage={(idx) => {
+                      const next = { ...it };
+                      next.wt_images = [...(next.wt_images || [])];
+                      next.wt_images.splice(idx, 1);
+                      updateSection(next);
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+        </section>
+      ))}
+    </main>
+  </div>
+);
+

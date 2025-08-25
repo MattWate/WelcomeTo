@@ -1,16 +1,15 @@
 import React from "react";
-import { useParams } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 
-export default function GuestViewPage() {
-  const { slug } = useParams(); // route should be /guest/:slug
+export default function GuestViewPage({ slug }) {
   const [property, setProperty] = React.useState(null);
   const [sections, setSections] = React.useState([]);
   const [imagesBySection, setImagesBySection] = React.useState({});
 
   React.useEffect(() => {
+    if (!slug) return;
     (async () => {
-      // 1) Find property by slug
+      // 1) Property by slug
       const { data: prop, error: pErr } = await supabase
         .from("wt_properties")
         .select("id,title,welcome_message,hero_image_url")
@@ -19,7 +18,7 @@ export default function GuestViewPage() {
       if (pErr || !prop) return;
       setProperty(prop);
 
-      // 2) Sections for property, ordered
+      // 2) Sections ordered
       const { data: secs } = await supabase
         .from("wt_sections")
         .select("id,title,content,display_order")
@@ -27,7 +26,7 @@ export default function GuestViewPage() {
         .order("display_order", { ascending: true });
       setSections(secs || []);
 
-      // 3) Images (optional)
+      // 3) Images grouped by section
       if (secs?.length) {
         const sectionIds = secs.map(s => s.id);
         const { data: imgs } = await supabase
@@ -57,7 +56,6 @@ export default function GuestViewPage() {
       {property.welcome_message && (
         <p className="text-slate-600 mb-6">{property.welcome_message}</p>
       )}
-
       <div className="prose">
         {sections.map(s => (
           <section key={s.id} className="mb-8">

@@ -1,7 +1,7 @@
 import React from "react";
 import PropertyList from "./PropertyList";
 import SectionList from "./SectionList";
-import SectionEditor from "../../editor/SectionEditor";
+import SectionEditor from "../editor/SectionEditor.jsx";
 import PublishBar from "../../components/ui/PublishBar";
 import Header from "../../components/layout/Header";
 
@@ -34,3 +34,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

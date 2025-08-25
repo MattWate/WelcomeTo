@@ -1,318 +1,391 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Icon from '../../components/ui/Icon';
-import { supabase } from '../../lib/supabaseClient';
+import React from "react";
+import { supabase } from "../../lib/supabaseClient";
+import Header from "../../components/layout/Header";
+import Button from "../../components/ui/Button";
 
-const blankBookTemplate = {
-  title: '',
-  welcome_message: '',
-  hero_image_url: 'https://placehold.co/1200x600/e2e8f0/a0aec0?text=Upload+a+Hero+Image',
-  groupedSections: [
+/** -----------------------------------------------------------------------
+ * 1) Default template — ensures every expected section is visible
+ *    Titles can be edited later; we use them to map existing DB sections.
+ * ----------------------------------------------------------------------*/
+function defaultTemplate() {
+  return [
     {
-      groupTitle: 'Arrival & Essentials',
+      group: "Main Details",
       items: [
-        { title: 'Welcome', icon_name: 'home', content: '', wt_images: [] },
-        { title: 'Meet Hosts', icon_name: 'users', content: '', wt_images: [] },
-        { title: 'Check-in / Check-out', icon_name: 'key', content: '', wt_images: [] },
-        { title: 'WiFi', icon_name: 'wifi', content: '', wt_images: [] },
-      ]
+        // "Main Details" uses top-level fields (title, welcome_message, hero_image_url).
+        // Kept here only for ordering consistency; no card needed.
+      ],
     },
     {
-      groupTitle: 'About the Home',
+      group: "Arrival & Essentials",
       items: [
-        { title: 'Amenities', icon_name: 'star', content: '', wt_images: [] },
-        { title: 'House Rules', icon_name: 'shield', content: '', wt_images: [] },
-        { title: 'Kitchen', icon_name: 'utensils', content: '', wt_images: [] },
-        { title: 'Pet Policy', icon_name: 'pawPrint', content: '', wt_images: [] },
-      ]
+        { title: "Welcome", icon_name: "home", content: "" },
+        { title: "Directions & Parking", icon_name: "map", content: "" },
+        { title: "Check-in & Check-out", icon_name: "key", content: "" },
+        { title: "Wi-Fi & Internet", icon_name: "wifi", content: "" },
+        { title: "House Rules", icon_name: "book", content: "" },
+        { title: "Safety Info", icon_name: "shield", content: "" },
+      ],
     },
     {
-      groupTitle: 'Local Guide & Help',
+      group: "About the Home",
       items: [
-        { title: 'Emergency', icon_name: 'alertTriangle', content: '', wt_images: [] },
-        { title: 'Contact', icon_name: 'mail', content: '', wt_images: [] },
-        { title: 'Local Favourites', icon_name: 'mapPin', content: [], wt_images: [] }
-      ]
-    }
-  ]
-};
+        { title: "Appliances & Controls", icon_name: "tools", content: "" },
+        { title: "Kitchen & Dining", icon_name: "utensils", content: "" },
+        { title: "Laundry", icon_name: "laundry", content: "" },
+        { title: "Heating & Cooling", icon_name: "thermo", content: "" },
+        { title: "Outdoor Areas", icon_name: "garden", content: "" },
+      ],
+    },
+    {
+      group: "Local Guide & Help",
+      items: [
+        // IMPORTANT: keep content as ARRAY for Local Favourites (App.jsx expects this)
+        { title: "Local Favourites", icon_name: "pin", content: [] },
+        { title: "Emergency Contacts", icon_name: "phone", content: "" },
+      ],
+    },
+  ];
+}
 
-const EditorPage = ({ slug, onSave, onExit }) => {
-  const [bookData, setBookData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  
-  const heroImageInputRef = useRef(null);
-  const sectionImageInputRef = useRef(null);
+/** Map a DB section into our template slot */
+function mapDbSection(sectionRow, imagesForSection) {
+  return {
+    id: sectionRow.id,
+    title: sectionRow.title || "",
+    icon_name: sectionRow.icon_name || "",
+    content: sectionRow.content || "",
+    wt_images: (imagesForSection || []).map((img) => ({
+      id: img.id,
+      image_url: img.image_url,
+      caption: img.caption || "",
+      display_order: img.display_order || 0,
+    })),
+  };
+}
 
-  useEffect(() => {
-    const fetchFullPropertyData = async () => {
-      setLoading(true);
-      setError(null);
+/** Merge defaults with DB rows so missing sections appear as empty cards */
+function mergeWithDefaults(templateGroups, dbSections = [], dbImages = [], dbFavourites = []) {
+  const imagesBySection = dbImages.reduce((acc, img) => {
+    (acc[img.section_id] ||= []).push(img);
+    return acc;
+  }, {});
 
-      const { data, error } = await supabase
-        .from('wt_properties')
-        .select(`*, wt_sections (*, wt_images (*)), wt_local_favourites (*)`)
-        .eq('slug', slug)
-        .single();
+  // Find a matching DB section by title (case-insensitive)
+  const matchByTitle = (title) =>
+    dbSections.find((s) => (s.title || "").trim().toLowerCase() === title.trim().toLowerCase());
 
-      if (error) {
-        console.error('Error fetching property data:', error);
-        setError('Failed to load property data.');
+  return templateGroups.map((g) => {
+    // Special handling for Local Favourites: use dbFavourites array if present
+    const items = (g.items || []).map((tpl) => {
+      if (Array.isArray(tpl.content)) {
+        // Local Favourites
+        const lf = dbFavourites
+          .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+          .map((f) => ({ name: f.name, description: f.description || "", url: f.url || "" }));
+        return { ...tpl, content: lf, wt_images: [] };
+      }
+
+      const match = matchByTitle(tpl.title);
+      if (match) {
+        return mapDbSection(match, imagesBySection[match.id]);
       } else {
-        const formattedData = {
-          ...data,
-          groupedSections: [
-            {
-              groupTitle: 'Arrival & Essentials',
-              items: data.wt_sections.filter(s => ['Welcome', 'Meet Hosts', 'Check-in / Check-out', 'WiFi'].includes(s.title))
-            },
-            {
-              groupTitle: 'About the Home',
-              items: data.wt_sections.filter(s => ['Amenities', 'House Rules', 'Kitchen', 'Pet Policy'].includes(s.title))
-            },
-            {
-              groupTitle: 'Local Guide & Help',
-              items: [
-                ...data.wt_sections.filter(s => ['Emergency', 'Contact'].includes(s.title)),
-                {
-                  title: 'Local Favourites',
-                  icon_name: 'mapPin',
-                  content: data.wt_local_favourites,
-                  wt_images: []
-                }
-              ]
-            }
-          ]
-        };
-        setBookData(formattedData);
+        return { ...tpl, wt_images: [] }; // empty placeholder card
       }
-      setLoading(false);
-    };
+    });
 
-    if (slug === 'new') {
-      setBookData(blankBookTemplate);
-      setLoading(false);
-    } else if (slug) {
-      fetchFullPropertyData();
-    }
-  }, [slug]);
+    // Also include any extra DB sections whose titles aren’t in the template
+    const usedIds = new Set(items.map((i) => i.id).filter(Boolean));
+    const extras = dbSections
+      .filter((s) => !usedIds.has(s.id))
+      .map((s) => mapDbSection(s, imagesBySection[s.id]));
 
-  const handleImageUpload = async (file, isHeroImage = false, groupIndex, itemIndex) => {
-    if (!file) return;
+    return { ...g, items: [...items, ...extras] };
+  });
+}
 
-    setUploading(true);
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('property_images')
-      .upload(filePath, file);
-
-    if (uploadError) {
-      console.error('Error uploading image:', uploadError);
-      alert('Failed to upload image.');
-      setUploading(false);
-      return;
-    }
-
-    const { data } = supabase.storage
-      .from('property_images')
-      .getPublicUrl(filePath);
-
-    const publicUrl = data.publicUrl;
-
-    if (isHeroImage) {
-      setBookData(prev => ({ ...prev, hero_image_url: publicUrl }));
-    } else {
-      const updatedData = { ...bookData };
-      const newImage = { image_url: publicUrl, caption: '' };
-      // Ensure wt_images array exists
-      if (!updatedData.groupedSections[groupIndex].items[itemIndex].wt_images) {
-          updatedData.groupedSections[groupIndex].items[itemIndex].wt_images = [];
-      }
-      updatedData.groupedSections[groupIndex].items[itemIndex].wt_images.push(newImage);
-      setBookData(updatedData);
-    }
-    setUploading(false);
-  };
-  
-  const handleImageDelete = async (imageUrl, groupIndex, itemIndex, imgIndex) => {
-      const fileName = imageUrl.split('/').pop();
-      
-      const { error } = await supabase.storage.from('property_images').remove([fileName]);
-
-      if (error) {
-          console.error('Error deleting image:', error);
-          alert('Failed to delete image.');
-          return;
-      }
-      
-      const updatedData = { ...bookData };
-      updatedData.groupedSections[groupIndex].items[itemIndex].wt_images.splice(imgIndex, 1);
-      setBookData(updatedData);
-  };
-
-
-  const handleSaveClick = async () => {
-    setSaving(true);
-    onSave(bookData);
-    setSaving(false);
-  };
-
-  const handleInputChange = (e, field) => {
-    setBookData(prev => ({ ...prev, [field]: e.target.value }));
-  };
-
-  const handleSectionChange = (groupIndex, itemIndex, value) => {
-    const updatedData = { ...bookData };
-    updatedData.groupedSections[groupIndex].items[itemIndex].content = value;
-    setBookData(updatedData);
-  };
-  
-  const handleFavouriteChange = (groupIndex, itemIndex, favIndex, field, value) => {
-    const updatedData = { ...bookData };
-    updatedData.groupedSections[groupIndex].items[itemIndex].content[favIndex][field] = value;
-    setBookData(updatedData);
-  };
-
-  const addFavourite = (groupIndex, itemIndex) => {
-    const updatedData = { ...bookData };
-    updatedData.groupedSections[groupIndex].items[itemIndex].content.push({ name: '', description: '', url: '' });
-    setBookData(updatedData);
-  };
-
-  const removeFavourite = (groupIndex, itemIndex, favIndex) => {
-     const updatedData = { ...bookData };
-     updatedData.groupedSections[groupIndex].items[itemIndex].content.splice(favIndex, 1);
-     setBookData(updatedData);
-  };
-
-
-  if (loading) {
-    return <div className="p-8 text-center">Loading editor...</div>;
-  }
-  
-  if (error) {
-    return <div className="p-8 text-center text-red-500">{error}</div>;
-  }
-
+/** Thumbnail + upload tile for section images */
+function ImagesPicker({ images = [], onUpload, onRemove }) {
   return (
-    <div className="bg-gray-100 min-h-screen font-sans">
-        <header className="bg-white shadow-md sticky top-0 z-10">
-            <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-                <div className="flex items-center space-x-2">
-                    <Icon name="home" className="w-7 h-7 text-green-600" />
-                    <span className="text-2xl font-bold text-gray-800">WelcomeTo Editor</span>
-                </div>
-                <div className="flex items-center space-x-4">
-                    <button onClick={onExit} className="font-semibold text-gray-600 hover:text-gray-900">
-                        Exit
-                    </button>
-                    <button onClick={handleSaveClick} disabled={saving || uploading} className="flex items-center justify-center bg-green-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-green-700 disabled:bg-green-300">
-                        <Icon name="save" className="w-5 h-5 mr-2" />
-                        {saving ? 'Saving...' : (uploading ? 'Uploading...' : 'Save Changes')}
-                    </button>
-                </div>
-            </div>
-        </header>
+    <div className="flex gap-3 flex-wrap">
+      {images.map((img, i) => (
+        <div key={i} className="relative">
+          <img
+            src={img.image_url}
+            alt=""
+            className="h-20 w-28 object-cover rounded-lg border"
+          />
+          <button
+            type="button"
+            onClick={() => onRemove?.(i)}
+            className="absolute -top-2 -right-2 bg-white border rounded-full w-6 h-6 text-xs"
+            title="Remove"
+          >
+            ×
+          </button>
+        </div>
+      ))}
 
-        <main className="container mx-auto p-6 md:p-8">
-            <div className="bg-white p-8 rounded-xl shadow-lg mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">Main Details</h2>
-                <div className="space-y-4">
-                    <div>
-                        <label htmlFor="title" className="font-semibold text-gray-700">Property Title</label>
-                        <input type="text" id="title" value={bookData.title} onChange={(e) => handleInputChange(e, 'title')} className="mt-1 block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:border-green-500 focus:ring-green-500"/>
-                    </div>
-                    <div>
-                        <label htmlFor="welcomeMessage" className="font-semibold text-gray-700">Welcome Message</label>
-                        <textarea id="welcomeMessage" value={bookData.welcome_message} onChange={(e) => handleInputChange(e, 'welcome_message')} rows="3" className="mt-1 block w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md focus:border-green-500 focus:ring-green-500"></textarea>
-                    </div>
-                    <div>
-                        <label className="font-semibold text-gray-700">Hero Image</label>
-                        <div className="mt-2 flex items-center space-x-4">
-                            <img src={bookData.hero_image_url} alt="Hero" className="w-48 h-24 object-cover rounded-lg"/>
-                            <input type="file" ref={heroImageInputRef} onChange={(e) => handleImageUpload(e.target.files[0], true)} style={{ display: 'none' }} accept="image/*" />
-                            <button onClick={() => heroImageInputRef.current.click()} disabled={uploading} className="flex items-center bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-lg hover:bg-gray-300 disabled:bg-gray-100">
-                                <Icon name="upload" className="w-5 h-5 mr-2" />
-                                {uploading ? 'Uploading...' : 'Upload New'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {bookData.groupedSections.map((group, groupIndex) => (
-                <div key={groupIndex} className="mb-8">
-                    <h2 className="text-2xl font-semibold text-gray-500 mb-4 border-b pb-2">{group.groupTitle}</h2>
-                    <div className="space-y-6">
-                        {group.items.map((section, itemIndex) => (
-                            <div key={itemIndex} className="bg-white p-6 rounded-xl shadow-lg">
-                                <div className="flex items-center space-x-3 mb-4">
-                                    <Icon name={section.icon_name} className="w-6 h-6 text-green-600" />
-                                    <h3 className="text-xl font-bold text-gray-800">{section.title}</h3>
-                                </div>
-
-                                {Array.isArray(section.content) ? (
-                                    <div className="space-y-4">
-                                        {section.content.map((item, favIndex) => (
-                                            <div key={favIndex} className="border rounded-lg p-4 space-y-3 relative">
-                                                <button onClick={() => removeFavourite(groupIndex, itemIndex, favIndex)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500">
-                                                    <Icon name="trash" className="w-5 h-5" />
-                                                </button>
-                                                <div>
-                                                    <label className="text-sm font-medium text-gray-600">Name</label>
-                                                    <input type="text" value={item.name} onChange={(e) => handleFavouriteChange(groupIndex, itemIndex, favIndex, 'name', e.target.value)} className="mt-1 block w-full px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-md"/>
-                                                </div>
-                                                <div>
-                                                    <label className="text-sm font-medium text-gray-600">Description</label>
-                                                    <input type="text" value={item.description} onChange={(e) => handleFavouriteChange(groupIndex, itemIndex, favIndex, 'description', e.target.value)} className="mt-1 block w-full px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-md"/>
-                                                </div>
-                                                <div>
-                                                    <label className="text-sm font-medium text-gray-600">URL</label>
-                                                    <input type="text" value={item.url} onChange={(e) => handleFavouriteChange(groupIndex, itemIndex, favIndex, 'url', e.target.value)} className="mt-1 block w-full px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-md"/>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        <button onClick={() => addFavourite(groupIndex, itemIndex)} className="flex items-center text-green-600 font-semibold px-4 py-2 rounded-lg hover:bg-green-50">
-                                            <Icon name="plus" className="w-5 h-5 mr-2" />
-                                            Add Favourite
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <textarea value={section.content} onChange={(e) => handleSectionChange(groupIndex, itemIndex, e.target.value)} rows="4" className="block w-full px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-md"></textarea>
-                                )}
-
-                                {section.wt_images !== undefined && (
-                                    <div className="mt-4">
-                                        <label className="font-semibold text-gray-700">Images</label>
-                                        <div className="mt-2 flex items-center flex-wrap gap-4">
-                                            {section.wt_images.map((img, imgIndex) => (
-                                                <div key={imgIndex} className="relative">
-                                                    <img src={img.image_url} alt="" className="w-32 h-20 object-cover rounded-lg"/>
-                                                    <button onClick={() => handleImageDelete(img.image_url, groupIndex, itemIndex, imgIndex)} className="absolute -top-2 -right-2 bg-white rounded-full p-1 text-red-500 shadow-md hover:bg-red-50">
-                                                        <Icon name="trash" className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            <input type="file" ref={sectionImageInputRef} onChange={(e) => handleImageUpload(e.target.files[0], false, groupIndex, itemIndex)} style={{ display: 'none' }} accept="image/*" />
-                                            <button onClick={() => sectionImageInputRef.current.click()} disabled={uploading} className="flex items-center justify-center w-32 h-20 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 hover:text-gray-700 disabled:bg-gray-50">
-                                                <Icon name="upload" className="w-6 h-6" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            ))}
-        </main>
+      <label className="h-20 w-28 rounded-lg border bg-slate-50 inline-flex items-center justify-center cursor-pointer hover:bg-slate-100">
+        <input type="file" className="hidden" onChange={onUpload} accept="image/*" />
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" stroke="#94a3b8" strokeWidth="2" />
+        </svg>
+      </label>
     </div>
   );
-};
+}
 
-export default EditorPage;
+/** Section card */
+function SectionCard({ section, onChange, onUploadImage, onRemoveImage }) {
+  const isLocalFavourites = Array.isArray(section.content);
+
+  return (
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex h-6 w-6 items-center justify-center rounded border border-emerald-200 bg-emerald-50">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+            <path d="M4 11.5 12 5l8 6.5" stroke="#10b981" strokeWidth="1.7" />
+          </svg>
+        </div>
+        <input
+          className="flex-1 border rounded-lg px-3 py-1.5 text-sm"
+          value={section.title}
+          onChange={(e) => onChange({ ...section, title: e.target.value })}
+        />
+      </div>
+
+      {isLocalFavourites ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium text-slate-700">Local Favourites</div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onChange({ ...section, content: [...section.content, { name: "", description: "", url: "" }] })}
+            >
+              Add Favourite
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {section.content.map((fav, idx) => (
+              <div key={idx} className="grid md:grid-cols-3 gap-2">
+                <input
+                  className="border rounded-lg px-3 py-2 text-sm"
+                  placeholder="Name"
+                  value={fav.name}
+                  onChange={(e) => {
+                    const next = [...section.content];
+                    next[idx] = { ...fav, name: e.target.value };
+                    onChange({ ...section, content: next });
+                  }}
+                />
+                <input
+                  className="border rounded-lg px-3 py-2 text-sm"
+                  placeholder="URL (optional)"
+                  value={fav.url}
+                  onChange={(e) => {
+                    const next = [...section.content];
+                    next[idx] = { ...fav, url: e.target.value };
+                    onChange({ ...section, content: next });
+                  }}
+                />
+                <input
+                  className="border rounded-lg px-3 py-2 text-sm md:col-span-1"
+                  placeholder="Description (optional)"
+                  value={fav.description}
+                  onChange={(e) => {
+                    const next = [...section.content];
+                    next[idx] = { ...fav, description: e.target.value };
+                    onChange({ ...section, content: next });
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <textarea
+          className="w-full min-h-[120px] border rounded-lg px-3 py-2 text-sm"
+          placeholder="Write content… (HTML allowed)"
+          value={section.content || ""}
+          onChange={(e) => onChange({ ...section, content: e.target.value })}
+        />
+      )}
+
+      <div className="mt-3">
+        <div className="text-sm text-slate-600 mb-1">Images</div>
+        <ImagesPicker
+          images={section.wt_images || []}
+          onUpload={(e) => onUploadImage?.(e, section)}
+          onRemove={(i) => {
+            const next = { ...section };
+            next.wt_images = [...(next.wt_images || [])];
+            next.wt_images.splice(i, 1);
+            onChange(next);
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** -----------------------------------------------------------------------
+ * 2) Editor Page — styled like the dashboard, with default-section merge
+ * ----------------------------------------------------------------------*/
+export default function EditorPage({ slug, onSave, onExit }) {
+  const creatingNew = slug === "new";
+
+  // Property main details
+  const [property, setProperty] = React.useState({
+    id: null,
+    title: "",
+    welcome_message: "",
+    hero_image_url: "",
+  });
+
+  // Grouped sections for UI
+  const [groups, setGroups] = React.useState(defaultTemplate());
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    (async () => {
+      setLoading(true);
+
+      let prop = null;
+      if (!creatingNew) {
+        const { data: p, error: pErr } = await supabase
+          .from("wt_properties")
+          .select("id,title,welcome_message,hero_image_url,slug")
+          .eq("slug", slug)
+          .maybeSingle();
+        if (pErr) console.error(pErr);
+        prop = p || null;
+      }
+
+      if (prop) {
+        setProperty({
+          id: prop.id,
+          title: prop.title || "",
+          welcome_message: prop.welcome_message || "",
+          hero_image_url: prop.hero_image_url || "",
+          slug: prop.slug,
+        });
+
+        // Load related rows
+        const [{ data: secs }, { data: imgs }, { data: favs }] = await Promise.all([
+          supabase
+            .from("wt_sections")
+            .select("id,property_id,title,icon_name,content,display_order")
+            .eq("property_id", prop.id)
+            .order("display_order", { ascending: true }),
+          supabase
+            .from("wt_images")
+            .select("id,section_id,image_url,caption,display_order")
+            .in(
+              "section_id",
+              (secs || []).map((s) => s.id).concat(["00000000-0000-0000-0000-000000000000"]) // guard for empty
+            ),
+          supabase
+            .from("wt_local_favourites")
+            .select("property_id,name,description,url,display_order")
+            .eq("property_id", prop.id)
+            .order("display_order", { ascending: true }),
+        ]);
+
+        setGroups(mergeWithDefaults(defaultTemplate(), secs || [], imgs || [], favs || []));
+      } else {
+        // New property → just show defaults
+        setGroups(defaultTemplate());
+      }
+
+      setLoading(false);
+    })();
+  }, [slug, creatingNew]);
+
+  /** Upload hero image → store public URL in state (bucket must be public or use signed URLs) */
+  async function uploadHero(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const folder = property.id || "new";
+    const path = `${folder}/hero_${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabase.storage.from("property_images").upload(path, file);
+    if (upErr) return alert("Upload failed: " + upErr.message);
+
+    const { data } = await supabase.storage.from("property_images").getPublicUrl(path);
+    setProperty((p) => ({ ...p, hero_image_url: data?.publicUrl || "" }));
+  }
+
+  /** Upload section image */
+  async function uploadSectionImage(e, section) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const folder = property.id || "new";
+    const path = `${folder}/${section.id || "section"}_${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabase.storage.from("property_images").upload(path, file);
+    if (upErr) return alert("Upload failed: " + upErr.message);
+
+    const { data } = await supabase.storage.from("property_images").getPublicUrl(path);
+    const url = data?.publicUrl || "";
+
+    setGroups((gs) =>
+      gs.map((g) => ({
+        ...g,
+        items: g.items.map((it) => {
+          if ((it.id && section.id && it.id === section.id) || it === section) {
+            const next = { ...it };
+            next.wt_images = [...(next.wt_images || []), { image_url: url, caption: "", display_order: (next.wt_images?.length || 0) }];
+            return next;
+          }
+          return it;
+        }),
+      }))
+    );
+  }
+
+  /** Change a section inside our grouped state */
+  function updateSection(updated) {
+    setGroups((gs) =>
+      gs.map((g) => ({
+        ...g,
+        items: g.items.map((it) => (it.id === updated.id || it === updated._matchRef ? updated : it)),
+      }))
+    );
+  }
+
+  /** Assemble the bookData that App.jsx.handleSave expects */
+  function buildBookData() {
+    return {
+      id: property.id || undefined,
+      title: property.title,
+      slug: property.slug, // can be undefined; App.jsx will derive from title
+      welcome_message: property.welcome_message,
+      hero_image_url: property.hero_image_url,
+      groupedSections: groups.map((g) => ({
+        group: g.group,
+        items: g.items.map((it) => ({
+          id: it.id, // may be undefined for new sections
+          title: it.title,
+          icon_name: it.icon_name || null,
+          content: it.content, // string OR favourites array
+          wt_images: it.wt_images || [],
+        })),
+      })),
+    };
+  }
+
+  async function handleSaveClick() {
+    setSaving(true);
+    try {
+      const bookData = buildBookData();
+      await onSave?.(bookData);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-100">
+        <Header title="WelcomeTo Editor" right={<d

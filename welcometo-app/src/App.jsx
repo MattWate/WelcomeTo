@@ -7,7 +7,7 @@ import GuestViewPage from './features/guest/GuestViewPage.jsx';
 import DashboardPage from './features/dashboard/DashboardPage.jsx';
 import EditorPage from './features/editor/EditorPage.jsx';
 import LoginPage from './features/auth/LoginPage.jsx';
-
+import GuestViewPage from "./editor/guest/GuestViewPage";
 
 function App() {
   const [view, setView] = useState('landing');
@@ -239,3 +239,4 @@ function App() {
 }
 
 export default App;
+

@@ -5,7 +5,6 @@ import Button from "../../components/ui/Button";
 import RichText from "../../components/ui/RichText";
 
 /* ----------------------------- Default template ---------------------------- */
-/** Keep Main Details as top card; other groups become editable section cards */
 function defaultTemplate() {
   return [
     { group: "Main Details", items: [] },
@@ -76,14 +75,26 @@ function mergeWithDefaults(templateGroups, dbSections = [], dbImages = [], dbFav
         // Local Favourites
         const lf = (dbFavourites || [])
           .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
-          .map((f) => ({ name: f.name, description: f.description || "", url: f.url || "" }));
+          .map((f) => ({
+            name: f.name,
+            description: f.description || "",
+            url: f.url || "",
+            // new optional fields if you add them later:
+            address: f.address || "",
+            lat: f.lat ?? null,
+            lng: f.lng ?? null,
+            category: f.category || "",
+            place_provider: f.place_provider || "",
+            place_id: f.place_id || "",
+            image_url: f.image_url || "",
+          }));
         return { ...tpl, content: lf, wt_images: [] };
       }
       const match = matchByTitle(tpl.title);
       return match ? mapDbSection(match, imagesBySection[match.id]) : { ...tpl, wt_images: [] };
     });
 
-    // include extra DB sections not present in template (by title)
+    // include extra DB sections not present in template
     const usedIds = new Set(items.map((i) => i.id).filter(Boolean));
     const extras = dbSections
       .filter((s) => !usedIds.has(s.id))
@@ -229,6 +240,24 @@ function SectionCard({ section, onChange, onUploadImage, onRemoveImage }) {
 }
 
 /* -------------------------------- Editor page ------------------------------ */
+async function copyToClipboard(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    alert("Link copied to clipboard");
+  } catch {
+    alert("Could not copy link");
+  }
+}
+
 export default function EditorPage({ slug, onSave, onExit }) {
   const creatingNew = slug === "new";
 
@@ -291,7 +320,7 @@ export default function EditorPage({ slug, onSave, onExit }) {
         // local favourites
         const { data: favs, error: fErr } = await supabase
           .from("wt_local_favourites")
-          .select("property_id,name,description,url,display_order")
+          .select("property_id,name,description,url,display_order,address,lat,lng,category,place_provider,place_id,image_url")
           .eq("property_id", prop.id)
           .order("display_order", { ascending: true });
         if (fErr) console.error(fErr);
@@ -420,12 +449,27 @@ export default function EditorPage({ slug, onSave, onExit }) {
     );
   }
 
+  const guestLink = property?.slug ? `${window.location.origin}/${property.slug}` : null;
+
   return (
     <div className="min-h-screen bg-slate-100">
       <Header
         title="WelcomeTo Editor"
         right={
           <div className="flex items-center gap-2">
+            {guestLink && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(guestLink, "_blank", "noopener,noreferrer")}
+                >
+                  View Guest Page
+                </Button>
+                <Button variant="ghost" onClick={() => copyToClipboard(guestLink)}>
+                  Copy Link
+                </Button>
+              </>
+            )}
             <Button variant="outline" onClick={() => onExit?.()}>Exit</Button>
             <Button onClick={handleSaveClick} disabled={saving}>
               {saving ? "Saving…" : "Save Changes"}
@@ -504,4 +548,3 @@ export default function EditorPage({ slug, onSave, onExit }) {
     </div>
   );
 }
-

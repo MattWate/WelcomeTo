@@ -299,3 +299,209 @@ export default function EditorPage({ slug, onSave, onExit }) {
         setGroups(withKeys(mergeWithDefaults(defaultTemplate(), secs || [], imgs || [], favs || [])));
       } else {
         setGroups(withKeys(defaultTemplate()));
+      }
+      setLoading(false);
+    })();
+  }, [slug, creatingNew]);
+
+  /* ----------------------------- Upload handlers --------------------------- */
+  async function uploadHero(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const folder = property.id || "new";
+    const path = `${folder}/hero_${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabase.storage.from("property_images").upload(path, file);
+    if (upErr) return alert("Upload failed: " + upErr.message);
+    const { data } = await supabase.storage.from("property_images").getPublicUrl(path);
+    setProperty((p) => ({ ...p, hero_image_url: data?.publicUrl || "" }));
+  }
+
+  async function uploadSectionImage(e, section) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const folder = property.id || "new";
+    const path = `${folder}/${section.id || "section"}_${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabase.storage.from("property_images").upload(path, file);
+    if (upErr) return alert("Upload failed: " + upErr.message);
+    const { data } = await supabase.storage.from("property_images").getPublicUrl(path);
+    const url = data?.publicUrl || "";
+
+    setGroups((gs) =>
+      gs.map((g) => ({
+        ...g,
+        items: g.items.map((it) => {
+          const match =
+            (it.id && section.id && it.id === section.id) || it._key === section._key;
+          if (match) {
+            const next = { ...it, wt_images: [...(it.wt_images || [])] };
+            next.wt_images.push({
+              image_url: url,
+              caption: "",
+              display_order: next.wt_images.length || 0,
+            });
+            return next;
+          }
+          return it;
+        }),
+      }))
+    );
+  }
+
+  function removeSectionImage(section, index) {
+    setGroups((gs) =>
+      gs.map((g) => ({
+        ...g,
+        items: g.items.map((it) => {
+          const match =
+            (it.id && section.id && it.id === section.id) || it._key === section._key;
+          if (match) {
+            const next = { ...it, wt_images: [...(it.wt_images || [])] };
+            next.wt_images.splice(index, 1);
+            return next;
+          }
+          return it;
+        }),
+      }))
+    );
+  }
+
+  /* ------------------------------ State helpers ---------------------------- */
+  function updateSection(updated) {
+    setGroups((gs) =>
+      gs.map((g) => ({
+        ...g,
+        items: g.items.map((it) => {
+          if (it.id && updated.id) return it.id === updated.id ? updated : it;
+          return it._key === updated._key ? updated : it;
+        }),
+      }))
+    );
+  }
+
+  function buildBookData() {
+    return {
+      id: property.id || undefined,
+      title: property.title,
+      slug: property.slug, // optional; App.jsx derives from title if missing
+      welcome_message: property.welcome_message,
+      hero_image_url: property.hero_image_url,
+      groupedSections: groups.map((g) => ({
+        group: g.group,
+        items: g.items.map((it) => ({
+          id: it.id,
+          title: it.title,
+          icon_name: it.icon_name || null,
+          content: it.content, // string or array (Local Favourites)
+          wt_images: it.wt_images || [],
+        })),
+      })),
+    };
+  }
+
+  async function handleSaveClick() {
+    setSaving(true);
+    try {
+      const bookData = buildBookData();
+      await onSave?.(bookData);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /* --------------------------------- Render -------------------------------- */
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-100">
+        <Header
+          title="WelcomeTo Editor"
+          right={<div className="text-sm text-slate-500">Loading…</div>}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100">
+      <Header
+        title="WelcomeTo Editor"
+        right={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => onExit?.()}>Exit</Button>
+            <Button onClick={handleSaveClick} disabled={saving}>
+              {saving ? "Saving…" : "Save Changes"}
+            </Button>
+          </div>
+        }
+      />
+
+      <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-8">
+        {/* Main details */}
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-semibold text-slate-800 mb-4">Main Details</h2>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Property Title</label>
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                value={property.title}
+                onChange={(e) => setProperty((p) => ({ ...p, title: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Welcome Message</label>
+              <textarea
+                className="w-full min-h-[90px] border rounded-lg px-3 py-2"
+                value={property.welcome_message}
+                onChange={(e) => setProperty((p) => ({ ...p, welcome_message: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Hero Image</label>
+              <div className="flex items-center gap-3">
+                {property.hero_image_url ? (
+                  <img
+                    src={property.hero_image_url}
+                    alt=""
+                    className="h-24 w-36 object-cover rounded-lg border"
+                  />
+                ) : (
+                  <div className="h-24 w-36 rounded-lg border bg-slate-50" />
+                )}
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input type="file" className="hidden" accept="image/*" onChange={uploadHero} />
+                  <Button variant="outline">Upload New</Button>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Groups & sections */}
+        {groups.map((g, gi) => (
+          <section key={gi}>
+            {g.items?.length ? (
+              <>
+                <h3 className="text-xl font-semibold text-slate-800 mb-3">{g.group}</h3>
+                <div className="space-y-4">
+                  {g.items.map((it, ii) => (
+                    <SectionCard
+                      key={it.id || it._key || `${gi}-${ii}-${it.title}`}
+                      section={it}
+                      onChange={updateSection}
+                      onUploadImage={uploadSectionImage}
+                      onRemoveImage={removeSectionImage}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </section>
+        ))}
+      </main>
+    </div>
+  );
+}
+

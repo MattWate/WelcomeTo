@@ -129,7 +129,7 @@ function App() {
       const allSections = bookData.groupedSections.flatMap(group => group.items);
       
       for (const section of allSections) {
-        if (Array.isArray(section.content)) continue; // Skip 'Local Favourites' for now
+        if (Array.isArray(section.content)) continue; // Skip 'Local Favourites' which is handled separately
 
         const sectionPayload = {
           property_id: property.id,
@@ -147,7 +147,7 @@ function App() {
 
         // Now handle images for this section
         if (section.wt_images) {
-            // Delete images that are no longer present
+            // Delete images that are no longer present in the editor state
             const existingImageUrls = section.wt_images.map(img => img.image_url);
             const { data: currentImages, error: fetchError } = await supabase.from('wt_images').select('image_url').eq('section_id', savedSection.id);
             if(fetchError) throw fetchError;
@@ -176,6 +176,7 @@ function App() {
       // Step 3: Prepare and save the local favourites
       const favouritesSection = allSections.find(item => item.title === 'Local Favourites');
       if (favouritesSection) {
+        // Simple approach: delete all existing and re-insert. Good for MVP.
         const { error: deleteFavError } = await supabase.from('wt_local_favourites').delete().eq('property_id', property.id);
         if (deleteFavError) throw deleteFavError;
 
@@ -217,7 +218,7 @@ function App() {
           />
         );
       case 'editor':
-        return <EditorPage slug={slug} onSave={handleSave} onExit={handleNavigateToDashboard} />;
+        return <EditorPage slug={slug} user={user} onSave={handleSave} onExit={handleNavigateToDashboard} />;
       case 'guest':
         return <GuestViewPage slug={slug} />;
       case 'loading':
@@ -238,5 +239,3 @@ function App() {
 }
 
 export default App;
-
-
